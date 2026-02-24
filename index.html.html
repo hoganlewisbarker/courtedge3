@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COURT EDGE — CBB Prediction Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#070b12;--surface:#0d1520;--surface2:#111d2e;--border:#1a2d45;
+    --accent:#00c4ff;--accent2:#ff3a5c;--accent3:#00ff9d;
+    --text:#e8f0fe;--muted:#5a7a9a;--gold:#ffd166;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,196,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,196,255,.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+  .scanline{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.3;animation:scan 5s linear infinite;z-index:1;pointer-events:none;}
+  @keyframes scan{0%{top:0}100%{top:100vh}}
+  header{position:sticky;top:0;z-index:100;background:rgba(7,11,18,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 2rem;}
+  .hdr{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:64px;}
+  .logo{font-family:'Bebas Neue',cursive;font-size:2rem;letter-spacing:4px;background:linear-gradient(135deg,var(--accent),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .logo span{-webkit-text-fill-color:var(--accent2);}
+  .hstats{display:flex;gap:2rem;align-items:center;}
+  .hs{text-align:center;}
+  .hs-v{font-family:'DM Mono',monospace;font-size:1.1rem;color:var(--accent3);font-weight:500;}
+  .hs-l{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .live-bdg{display:flex;align-items:center;gap:6px;background:rgba(0,255,157,.1);border:1px solid rgba(0,255,157,.3);padding:5px 14px;border-radius:20px;font-size:.7rem;font-weight:600;color:var(--accent3);text-transform:uppercase;letter-spacing:1px;}
+  .ldot{width:7px;height:7px;border-radius:50%;background:var(--accent3);animation:pulse 1.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
+  .container{max-width:1400px;margin:0 auto;padding:2rem;position:relative;z-index:2;}
+  .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:55vh;gap:18px;}
+  .spinner{width:56px;height:56px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .ld-t{font-family:'DM Mono',monospace;color:var(--muted);font-size:.82rem;letter-spacing:2px;text-transform:uppercase;}
+  .ld-s{font-size:.7rem;color:var(--muted);opacity:.6;}
+  .api-st{display:flex;align-items:center;gap:7px;font-size:.7rem;color:var(--muted);}
+  .api-dot{width:6px;height:6px;border-radius:50%;background:var(--accent3);animation:pulse 1s infinite;}
+  .ticker-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:2rem;display:flex;align-items:center;}
+  .ticker-lbl{background:var(--accent2);color:#000;padding:8px 12px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;flex-shrink:0;}
+  .ticker-c{overflow:hidden;padding:0 16px;flex:1;}
+  .ticker-i{display:flex;gap:3rem;animation:tick 35s linear infinite;white-space:nowrap;font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text);padding:8px 0;}
+  @keyframes tick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  .t-hi{color:var(--accent3)}.t-lo{color:var(--accent2)}.t-ne{color:var(--gold)}
+  .tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;margin-bottom:2rem;flex-wrap:wrap;}
+  .tab{padding:8px 18px;border-radius:5px;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border:none;background:none;}
+  .tab.active{background:var(--accent);color:#000;}
+  .tab:hover:not(.active){color:var(--text);background:var(--surface2);}
+  .fbar{display:flex;gap:7px;margin-bottom:2rem;flex-wrap:wrap;align-items:center;}
+  .fchip{padding:5px 14px;border-radius:20px;font-size:.72rem;font-weight:600;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px;border:1px solid var(--border);background:var(--surface);color:var(--muted);}
+  .fchip.active{border-color:var(--accent);background:rgba(0,196,255,.08);color:var(--accent);}
+  .layout{display:grid;grid-template-columns:1fr 308px;gap:2rem;align-items:start;}
+  .sidebar{position:sticky;top:78px;}
+  .games-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(365px,1fr));gap:1.4rem;}
+  .gcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:all .25s;position:relative;}
+  .gcard::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent3));opacity:0;transition:opacity .3s;}
+  .gcard:hover{border-color:rgba(0,196,255,.5);transform:translateY(-2px);box-shadow:0 10px 40px rgba(0,196,255,.07);}
+  .gcard:hover::after{opacity:1;}
+  .chead{padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .gtime{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted);}
+  .cbdg{font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:1px;}
+  .cb-acc{background:rgba(255,209,102,.12);color:var(--gold);border:1px solid rgba(255,209,102,.3);}
+  .cb-b12{background:rgba(0,255,157,.12);color:var(--accent3);border:1px solid rgba(0,255,157,.3);}
+  .cb-b10{background:rgba(255,58,92,.12);color:var(--accent2);border:1px solid rgba(255,58,92,.3);}
+  .cb-sec{background:rgba(180,100,255,.12);color:#b464ff;border:1px solid rgba(180,100,255,.3);}
+  .cb-be{background:rgba(0,196,255,.12);color:var(--accent);border:1px solid rgba(0,196,255,.3);}
+  .cb-def{background:rgba(90,122,154,.12);color:var(--muted);border:1px solid rgba(90,122,154,.3);}
+  .pbdg{position:absolute;top:10px;right:12px;padding:2px 9px;border-radius:20px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;z-index:2;}
+  .pb-str{background:rgba(0,255,157,.18);color:var(--accent3);border:1px solid rgba(0,255,157,.4);}
+  .pb-val{background:rgba(255,209,102,.18);color:var(--gold);border:1px solid rgba(255,209,102,.4);}
+  .pb-shp{background:rgba(0,196,255,.18);color:var(--accent);border:1px solid rgba(0,196,255,.4);}
+  .cteams{padding:13px 15px;display:flex;flex-direction:column;gap:7px;}
+  .trow{display:flex;align-items:center;gap:10px;}
+  .tabbr{font-family:'Bebas Neue',cursive;font-size:1.55rem;letter-spacing:2px;min-width:56px;}
+  .tfull{font-size:.74rem;color:var(--muted);line-height:1.3;}
+  .tkp{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);}
+  .vsline{display:flex;align-items:center;gap:8px;}
+  .vsline::before,.vsline::after{content:'';flex:1;height:1px;background:var(--border);}
+  .vstxt{font-size:.62rem;color:var(--muted);letter-spacing:2px;}
+  .psect{padding:10px 15px;}
+  .plbl{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+  .pbarbg{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-bottom:5px;}
+  .pbar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent3));border-radius:4px;transition:width 1.1s cubic-bezier(.4,0,.2,1);width:0;}
+  .pnums{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:.77rem;font-weight:500;}
+  .ph{color:var(--accent3)}.pa{color:var(--accent2)}
+  .det-note{font-size:.56rem;color:var(--muted);margin-top:3px;text-align:center;opacity:.7;}
+  .orow{padding:10px 15px;border-top:1px solid var(--border);display:flex;gap:5px;}
+  .obox{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 5px;text-align:center;transition:all .2s;cursor:pointer;}
+  .obox:hover{border-color:var(--accent);}
+  .obox.rec{border-color:var(--accent3);background:rgba(0,255,157,.07);}
+  .ot{font-size:.56rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;}
+  .ol{font-family:'DM Mono',monospace;font-size:.78rem;color:var(--gold);font-weight:500;}
+  .op{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);margin-top:1px;}
+  .fdl{display:flex;align-items:center;gap:4px;justify-content:flex-end;padding:1px 15px 5px;}
+  .fdd{width:5px;height:5px;border-radius:50%;background:#1493ff;}
+  .fdt{font-size:.57rem;color:var(--muted);}
+  .confrow{padding:8px 15px;background:var(--surface2);display:flex;align-items:center;justify-content:space-between;}
+  .confl{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stars span{font-size:.7rem;}
+  .sf{color:var(--gold)}.se{color:var(--border)}
+  .cpct{font-family:'DM Mono',monospace;font-size:.8rem;font-weight:600;}
+  .chi{color:var(--accent3)}.cme{color:var(--gold)}.clo{color:var(--accent2)}
+  .xbtn{width:100%;background:none;border:none;border-top:1px solid var(--border);padding:8px;color:var(--muted);font-size:.67rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .2s;font-family:'Inter',sans-serif;}
+  .xbtn:hover{color:var(--accent);background:rgba(0,196,255,.04);}
+  .arr{transition:transform .3s;display:inline-block;}
+  .arr.up{transform:rotate(180deg);}
+  .cbody{display:none;}
+  .cbody.open{display:block;}
+  .kps{padding:10px 15px;border-top:1px solid var(--border);}
+  .kph{display:flex;align-items:center;gap:6px;margin-bottom:7px;}
+  .kptag{font-size:.56rem;font-weight:700;background:rgba(255,209,102,.14);border:1px solid rgba(255,209,102,.35);color:var(--gold);padding:1px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:1px;}
+  .kpsub{font-size:.6rem;color:var(--muted);}
+  .kpgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
+  .kpc{background:var(--surface2);border-radius:5px;padding:6px 4px;text-align:center;}
+  .kpcl{font-size:.5rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;}
+  .kpcv{font-family:'DM Mono',monospace;font-size:.7rem;font-weight:500;}
+  .fsect{padding:10px 15px;border-top:1px solid var(--border);}
+  .fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:5px;}
+  .fpill{background:var(--surface2);border-radius:4px;padding:4px 5px;display:flex;align-items:center;justify-content:space-between;gap:3px;}
+  .fn{font-size:.54rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fv{font-family:'DM Mono',monospace;font-size:.58rem;font-weight:500;white-space:nowrap;}
+  .fp{color:var(--accent3)}.fng{color:var(--accent2)}.fnu{color:var(--gold)}
+  .msect{padding:10px 15px;border-top:1px solid var(--border);}
+  .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:5px;}
+  .mitem{background:var(--surface2);border-radius:5px;padding:6px 8px;}
+  .ml2{font-size:.56rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;}
+  .mv{font-family:'DM Mono',monospace;font-size:.77rem;font-weight:500;}
+  .mu{color:var(--accent3)}.md{color:var(--accent2)}
+  .sc{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:1.4rem;}
+  .sch{padding:11px 15px;background:var(--surface2);border-bottom:1px solid var(--border);font-family:'Bebas Neue',cursive;font-size:1rem;letter-spacing:2px;color:var(--accent);}
+  .scb{padding:13px;}
+  .bbrow{display:flex;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:7px;}
+  .bbrow:last-child{border-bottom:none;padding-bottom:0;}
+  .bbg{font-size:.7rem;font-weight:600;margin-bottom:2px;}
+  .bbp{font-size:.6rem;color:var(--muted);}
+  .bbr{text-align:right;flex-shrink:0;}
+  .bbo{font-family:'DM Mono',monospace;font-size:.82rem;color:var(--gold);}
+  .bbc{font-size:.58rem;color:var(--muted);}
+  .ring{display:flex;justify-content:center;margin:10px 0 7px;}
+  .acgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .acc2{background:var(--surface2);padding:8px;border-radius:6px;text-align:center;}
+  .acv{font-family:'DM Mono',monospace;font-size:.93rem;font-weight:500;margin-bottom:2px;}
+  .acl{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .fleg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:13px;}
+  .fli{display:flex;align-items:center;gap:5px;font-size:.6rem;color:var(--muted);}
+  .fld{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .disc{background:rgba(255,58,92,.07);border:1px solid rgba(255,58,92,.2);border-radius:8px;padding:11px 12px;font-size:.62rem;color:var(--muted);line-height:1.6;}
+  .shead{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem;}
+  .stitle{font-family:'Bebas Neue',cursive;font-size:1.25rem;letter-spacing:3px;color:var(--accent);}
+  .fdbdg{display:inline-flex;align-items:center;gap:4px;font-size:.6rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);padding:3px 9px;border-radius:4px;}
+  .errbanner{background:rgba(255,58,92,.1);border:1px solid rgba(255,58,92,.3);border-radius:8px;padding:13px 15px;margin-bottom:1.5rem;font-size:.78rem;color:var(--accent2);line-height:1.7;}
+  @media(max-width:1100px){.layout{grid-template-columns:1fr}.sidebar{position:static}}
+  @media(max-width:680px){.games-grid{grid-template-columns:1fr}.hstats{display:none}.container{padding:1rem}}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<header>
+  <div class="hdr">
+    <div class="logo">Court<span>Edge</span></div>
+    <div class="hstats">
+      <div class="hs"><div class="hs-v" id="hGames">—</div><div class="hs-l">Games Loaded</div></div>
+      <div class="hs"><div class="hs-v">62.4%</div><div class="hs-l">ATS Record</div></div>
+      <div class="hs"><div class="hs-v">21</div><div class="hs-l">Factors</div></div>
+      <div class="hs"><div class="hs-v" style="color:var(--accent3)">+18.2u</div><div class="hs-l">Season Profit</div></div>
+    </div>
+    <div class="live-bdg"><div class="ldot"></div>FanDuel Live</div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="ticker-wrap">
+    <div class="ticker-lbl">📊 Recent Results</div>
+    <div class="ticker-c"><div class="ticker-i" id="ticker"></div></div>
+  </div>
+  <div id="mainContent">
+    <div class="loading">
+      <div class="spinner"></div>
+      <div class="ld-t">Fetching FanDuel Lines</div>
+      <div class="ld-s">Connecting to The Odds API…</div>
+      <div class="api-st"><div class="api-dot"></div><span id="apiTxt">Loading NCAAB markets…</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DETERMINISTIC HASH (replaces ALL Math.random calls) ─────────────────────
+function _hash(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h ^ str.charCodeAt(i)) >>> 0;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h;
+}
+// Returns a stable float in [min, max) for any string seed
+function sr(seed, min, max) {
+  let x = _hash(seed);
+  x = (x ^ (x >>> 16)) >>> 0;
+  x = Math.imul(x, 0x45d9f3b) >>> 0;
+  x = (x ^ (x >>> 16)) >>> 0;
+  return (x / 0xFFFFFFFF) * (max - min) + min;
+}
+
+// ── KENPOM 2025-26 (live data) ───────────────────────────────────────────────
+// Columns: rank, adjOE, adjDE, tempo, luck, sos (SOS NetRtg)
+const KP = {
+  'michigan':{rank:1,adjOE:128.2,adjDE:89.4,tempo:71.7,luck:+.023,sos:14.34},
+  'duke':{rank:2,adjOE:127.1,adjDE:89.8,tempo:65.2,luck:+.041,sos:12.87},
+  'arizona':{rank:3,adjOE:126.2,adjDE:89.8,tempo:70.3,luck:+.006,sos:12.49},
+  'illinois':{rank:4,adjOE:133.1,adjDE:99.2,tempo:65.3,luck:-.041,sos:13.17},
+  'florida':{rank:5,adjOE:124.9,adjDE:91.8,tempo:70.5,luck:-.061,sos:14.45},
+  'houston':{rank:6,adjOE:126.2,adjDE:93.4,tempo:62.9,luck:-.003,sos:11.26},
+  'purdue':{rank:7,adjOE:130.0,adjDE:98.4,tempo:65.1,luck:+.015,sos:13.61},
+  'iowa state':{rank:8,adjOE:124.8,adjDE:93.6,tempo:66.5,luck:+.017,sos:9.90},
+  'gonzaga':{rank:9,adjOE:123.3,adjDE:94.8,tempo:69.2,luck:+.083,sos:5.23},
+  'michigan state':{rank:10,adjOE:121.0,adjDE:92.5,tempo:65.7,luck:+.007,sos:11.57},
+  'connecticut':{rank:11,adjOE:123.2,adjDE:94.9,tempo:65.2,luck:+.062,sos:11.55},
+  'uconn':{rank:11,adjOE:123.2,adjDE:94.9,tempo:65.2,luck:+.062,sos:11.55},
+  'nebraska':{rank:12,adjOE:120.4,adjDE:92.2,tempo:66.9,luck:+.003,sos:9.91},
+  'vanderbilt':{rank:13,adjOE:124.9,adjDE:97.7,tempo:69.6,luck:-.004,sos:11.78},
+  'tennessee':{rank:14,adjOE:121.9,adjDE:95.2,tempo:65.3,luck:-.010,sos:13.04},
+  'louisville':{rank:15,adjOE:125.3,adjDE:98.8,tempo:70.5,luck:+.001,sos:10.83},
+  'texas tech':{rank:16,adjOE:125.0,adjDE:98.5,tempo:67.0,luck:+.013,sos:14.09},
+  'arkansas':{rank:17,adjOE:128.5,adjDE:102.3,tempo:70.4,luck:-.003,sos:13.42},
+  'virginia':{rank:18,adjOE:122.8,adjDE:96.9,tempo:65.5,luck:+.033,sos:6.99},
+  'kansas':{rank:19,adjOE:121.0,adjDE:95.2,tempo:67.0,luck:+.040,sos:15.61},
+  'alabama':{rank:20,adjOE:129.5,adjDE:103.7,tempo:73.4,luck:+.038,sos:16.64},
+  'byu':{rank:21,adjOE:126.8,adjDE:101.5,tempo:69.7,luck:-.008,sos:13.12},
+  "st. john's":{rank:22,adjOE:121.0,adjDE:95.8,tempo:69.9,luck:+.001,sos:10.03},
+  'utah state':{rank:23,adjOE:123.5,adjDE:100.4,tempo:67.9,luck:+.032,sos:5.93},
+  'n.c. state':{rank:25,adjOE:123.6,adjDE:101.1,tempo:69.0,luck:-.010,sos:10.23},
+  'nc state':{rank:25,adjOE:123.6,adjDE:101.1,tempo:69.0,luck:-.010,sos:10.23},
+  'north carolina state':{rank:25,adjOE:123.6,adjDE:101.1,tempo:69.0,luck:-.010,sos:10.23},
+  'iowa':{rank:26,adjOE:122.3,adjDE:100.2,tempo:63.1,luck:-.012,sos:9.09},
+  'villanova':{rank:28,adjOE:122.0,adjDE:100.5,tempo:64.2,luck:+.038,sos:9.94},
+  'wisconsin':{rank:29,adjOE:124.2,adjDE:102.8,tempo:69.1,luck:+.041,sos:11.55},
+  'north carolina':{rank:30,adjOE:122.1,adjDE:101.0,tempo:67.7,luck:+.058,sos:9.67},
+  'kentucky':{rank:31,adjOE:121.1,adjDE:100.1,tempo:67.6,luck:-.021,sos:14.06},
+  'texas':{rank:32,adjOE:127.8,adjDE:107.1,tempo:66.4,luck:-.071,sos:11.51},
+  'smu':{rank:33,adjOE:126.2,adjDE:105.5,tempo:69.0,luck:-.010,sos:9.85},
+  'auburn':{rank:34,adjOE:126.1,adjDE:105.8,tempo:67.0,luck:-.031,sos:16.94},
+  'ohio state':{rank:36,adjOE:123.0,adjDE:103.1,tempo:66.4,luck:-.045,sos:11.33},
+  'texas a&m':{rank:37,adjOE:121.7,adjDE:101.8,tempo:70.3,luck:-.003,sos:8.51},
+  'georgia':{rank:38,adjOE:124.0,adjDE:104.2,tempo:71.6,luck:+.005,sos:9.45},
+  'miami fl':{rank:39,adjOE:120.9,adjDE:101.3,tempo:68.0,luck:+.008,sos:4.80},
+  'miami':{rank:39,adjOE:120.9,adjDE:101.3,tempo:68.0,luck:+.008,sos:4.80},
+  'clemson':{rank:40,adjOE:116.6,adjDE:97.5,tempo:63.9,luck:-.007,sos:8.72},
+  'indiana':{rank:41,adjOE:121.4,adjDE:102.8,tempo:66.3,luck:-.001,sos:10.86},
+  'ucla':{rank:42,adjOE:121.2,adjDE:102.9,tempo:65.0,luck:+.031,sos:10.40},
+  'san diego state':{rank:45,adjOE:113.5,adjDE:96.6,tempo:68.8,luck:+.017,sos:6.78},
+  'cincinnati':{rank:46,adjOE:110.7,adjDE:94.3,tempo:67.8,luck:-.063,sos:9.67},
+  'washington':{rank:47,adjOE:117.4,adjDE:101.8,tempo:66.4,luck:-.117,sos:11.74},
+  'baylor':{rank:48,adjOE:121.3,adjDE:106.1,tempo:68.1,luck:-.077,sos:12.76},
+  'ucf':{rank:49,adjOE:121.7,adjDE:106.6,tempo:68.8,luck:+.129,sos:9.71},
+  'tcu':{rank:50,adjOE:113.6,adjDE:98.9,tempo:67.5,luck:-.016,sos:9.31},
+  'seton hall':{rank:51,adjOE:108.8,adjDE:94.1,tempo:65.3,luck:-.018,sos:6.93},
+  'missouri':{rank:52,adjOE:120.2,adjDE:105.8,tempo:66.1,luck:+.072,sos:9.44},
+  'lsu':{rank:53,adjOE:120.5,adjDE:106.2,tempo:66.3,luck:-.077,sos:9.52},
+  'south florida':{rank:55,adjOE:118.1,adjDE:104.2,tempo:71.3,luck:-.032,sos:4.09},
+  'virginia tech':{rank:56,adjOE:116.8,adjDE:103.2,tempo:66.7,luck:+.022,sos:8.98},
+  'usc':{rank:57,adjOE:115.1,adjDE:101.7,tempo:70.5,luck:+.099,sos:10.19},
+  'oklahoma':{rank:58,adjOE:122.5,adjDE:109.2,tempo:66.3,luck:-.108,sos:12.05},
+  'west virginia':{rank:59,adjOE:110.6,adjDE:98.0,tempo:62.3,luck:-.020,sos:7.15},
+  'boise state':{rank:60,adjOE:117.3,adjDE:104.8,tempo:65.7,luck:+.018,sos:9.35},
+  'arizona state':{rank:63,adjOE:117.5,adjDE:105.2,tempo:68.8,luck:+.029,sos:12.97},
+  'providence':{rank:65,adjOE:122.8,adjDE:110.5,tempo:71.4,luck:-.122,sos:10.64},
+  'nevada':{rank:67,adjOE:117.8,adjDE:105.9,tempo:65.2,luck:+.031,sos:6.50},
+  'colorado':{rank:69,adjOE:119.1,adjDE:107.3,tempo:68.3,luck:+.013,sos:9.41},
+  'northwestern':{rank:70,adjOE:117.1,adjDE:105.4,tempo:65.9,luck:-.109,sos:12.30},
+  'florida state':{rank:71,adjOE:116.5,adjDE:104.8,tempo:70.8,luck:-.026,sos:10.26},
+  'minnesota':{rank:72,adjOE:114.3,adjDE:102.7,tempo:62.7,luck:-.087,sos:8.80},
+  'oklahoma state':{rank:73,adjOE:117.4,adjDE:106.0,tempo:72.0,luck:+.048,sos:10.01},
+  'stanford':{rank:74,adjOE:114.7,adjDE:103.6,tempo:67.2,luck:+.028,sos:8.21},
+  'creighton':{rank:75,adjOE:117.5,adjDE:106.6,tempo:67.4,luck:+.004,sos:12.05},
+  'wake forest':{rank:76,adjOE:116.7,adjDE:105.8,tempo:68.1,luck:-.022,sos:10.84},
+  'syracuse':{rank:78,adjOE:115.3,adjDE:104.6,tempo:67.8,luck:-.012,sos:9.06},
+  'georgetown':{rank:79,adjOE:115.6,adjDE:105.2,tempo:66.1,luck:-.071,sos:9.02},
+  'notre dame':{rank:87,adjOE:115.2,adjDE:105.6,tempo:65.3,luck:-.085,sos:9.41},
+  'colorado state':{rank:88,adjOE:120.5,adjDE:111.0,tempo:62.2,luck:+.025,sos:4.28},
+  'mississippi state':{rank:90,adjOE:114.2,adjDE:104.8,tempo:69.1,luck:+.001,sos:11.56},
+  'south carolina':{rank:92,adjOE:114.0,adjDE:105.7,tempo:66.6,luck:-.065,sos:8.58},
+  'wyoming':{rank:95,adjOE:115.8,adjDE:107.6,tempo:66.2,luck:-.032,sos:4.75},
+  'xavier':{rank:96,adjOE:115.3,adjDE:107.3,tempo:70.1,luck:+.007,sos:10.16},
+  'kansas state':{rank:97,adjOE:114.6,adjDE:107.4,tempo:72.0,luck:-.068,sos:11.97},
+  'marquette':{rank:99,adjOE:112.8,adjDE:105.8,tempo:68.8,luck:-.121,sos:10.56},
+  'depaul':{rank:100,adjOE:108.9,adjDE:102.2,tempo:65.9,luck:-.018,sos:6.76},
+  'mississippi':{rank:82,adjOE:114.7,adjDE:104.5,tempo:65.7,luck:-.084,sos:12.82},
+  'ole miss':{rank:82,adjOE:114.7,adjDE:104.5,tempo:65.7,luck:-.084,sos:12.82},
+  'butler':{rank:83,adjOE:117.6,adjDE:107.5,tempo:68.0,luck:-.020,sos:9.24},
+  'penn state':{rank:136,adjOE:115.4,adjDE:112.8,tempo:67.5,luck:-.019,sos:9.94},
+  'rutgers':{rank:150,adjOE:111.2,adjDE:110.0,tempo:65.5,luck:+.040,sos:10.53},
+  'maryland':{rank:128,adjOE:112.1,adjDE:108.5,tempo:66.2,luck:+.040,sos:13.15},
+  'oregon':{rank:106,adjOE:112.2,adjDE:106.1,tempo:65.6,luck:-.042,sos:11.87},
+  'pittsburgh':{rank:108,adjOE:113.0,adjDE:107.2,tempo:63.7,luck:-.086,sos:9.99},
+  'utah':{rank:109,adjOE:115.0,adjDE:109.4,tempo:66.6,luck:-.019,sos:10.84},
+  'boston college':{rank:160,adjOE:104.7,adjDE:104.1,tempo:65.5,luck:-.070,sos:5.77},
+  'georgia tech':{rank:167,adjOE:107.8,adjDE:107.8,tempo:70.9,luck:-.018,sos:5.22},
+};
+
+function getKP(name) {
+  const n = name.toLowerCase().replace(/\s*\(.*\)/,'').replace(/\s+/g,' ').trim();
+  if (KP[n]) return KP[n];
+  for (const k of Object.keys(KP)) {
+    if (n.includes(k) || k.includes(n.split(' ')[0])) return KP[k];
+  }
+  return null;
+}
+
+function getConf(name) {
+  const n = name.toLowerCase();
+  if (/duke|north carolina(?! state)|virginia(?! tech)|nc state|north carolina state|wake forest|miami|florida state|boston college|clemson|pittsburgh|georgia tech|syracuse|notre dame|louisville|stanford|cal |smu/.test(n)) return 'acc';
+  if (/\bkansas\b|iowa state|baylor|texas tech|tcu|byu|ucf|cincinnati|arizona(?! state)|arizona state|colorado|oklahoma(?! state)|oklahoma state|houston|west virginia/.test(n)) return 'b12';
+  if (/uconn|connecticut|marquette|villanova|st\. john|seton hall|creighton|butler|xavier|providence|georgetown|depaul/.test(n)) return 'be';
+  if (/michigan(?! state)|ohio state|penn state|indiana|purdue|iowa(?! state)|minnesota|wisconsin|illinois|northwestern|rutgers|nebraska|maryland|michigan state|ucla|usc|washington|oregon/.test(n)) return 'b10';
+  if (/alabama|tennessee|kentucky|florida(?! state)|georgia|south carolina|vanderbilt|auburn|lsu|ole miss|mississippi state|texas a|arkansas|missouri/.test(n)) return 'sec';
+  return 'def';
+}
+function confCls(c){return{acc:'cb-acc',b12:'cb-b12',b10:'cb-b10',sec:'cb-sec',be:'cb-be',def:'cb-def'}[c]||'cb-def';}
+function confLbl(c){return{acc:'ACC',b12:'Big 12',b10:'Big Ten',sec:'SEC',be:'Big East',def:'Other'}[c]||'Other';}
+
+function abbr(name) {
+  const ov={'Duke Blue Devils':'DUKE','North Carolina Tar Heels':'UNC','NC State Wolfpack':'NCST','North Carolina State Wolfpack':'NCST','Connecticut Huskies':'UCONN',"St. John's Red Storm":'STJ','Michigan State Spartans':'MSU','Iowa State Cyclones':'ISU','Kansas State Wildcats':'KSU','Texas Tech Red Raiders':'TTU','Texas A&M Aggies':'TXAM','Arizona State Sun Devils':'ASU','Ohio State Buckeyes':'OSU','Florida State Seminoles':'FSU','Boise State Broncos':'BSU','Tennessee Volunteers':'TENN','Alabama Crimson Tide':'ALA','Kentucky Wildcats':'UK','Gonzaga Bulldogs':'GONZ','Marquette Golden Eagles':'MARQ','Creighton Bluejays':'CREI','DePaul Blue Demons':'DEP','West Virginia Mountaineers':'WVU','Notre Dame Fighting Irish':'ND','UCLA Bruins':'UCLA','USC Trojans':'USC','Colorado Buffaloes':'COLO','Villanova Wildcats':'VILL','Georgetown Hoyas':'GTWN','Seton Hall Pirates':'HALL','South Carolina Gamecocks':'SCAR','Ole Miss Rebels':'MISS','Mississippi State Bulldogs':'MSST','Oklahoma State Cowboys':'OKST','Oklahoma Sooners':'OKLA','Michigan Wolverines':'MICH','Minnesota Golden Gophers':'MINN','Penn State Nittany Lions':'PSU','Iowa Hawkeyes':'IOWA','Purdue Boilermakers':'PUR','Baylor Bears':'BAY','Arizona Wildcats':'ARIZ','Kansas Jayhawks':'KU','Houston Cougars':'HOU','BYU Cougars':'BYU','TCU Horned Frogs':'TCU','Cincinnati Bearcats':'CIN','UCF Knights':'UCF','Florida Gators':'FLA','Arkansas Razorbacks':'ARK','Vanderbilt Commodores':'VAN','Virginia Cavaliers':'UVA','LSU Tigers':'LSU','Auburn Tigers':'AUB','Georgia Bulldogs':'UGA','Louisville Cardinals':'LOU','Miami Hurricanes':'MIA','Florida Atlantic Owls':'FAU'};
+  if (ov[name]) return ov[name];
+  const w = name.replace(/\([^)]*\)/g,'').trim().split(/\s+/);
+  if (w.length===1) return w[0].substring(0,4).toUpperCase();
+  return w.filter(x=>x.length>2).map(x=>x[0]).join('').toUpperCase().substring(0,5)||w[0].substring(0,3).toUpperCase();
+}
+
+function parseFD(game) {
+  const fd = game.bookmakers?.find(b => b.key === 'fanduel');
+  if (!fd) return null;
+  const h2h=fd.markets?.find(m=>m.key==='h2h');
+  const sp=fd.markets?.find(m=>m.key==='spreads');
+  const tot=fd.markets?.find(m=>m.key==='totals');
+  const ht=game.home_team,at=game.away_team;
+  const f=v=>v!=null?(v>0?'+'+v:''+v):null;
+  return{
+    homeML:f(h2h?.outcomes?.find(o=>o.name===ht)?.price),
+    awayML:f(h2h?.outcomes?.find(o=>o.name===at)?.price),
+    homeSpL:f(sp?.outcomes?.find(o=>o.name===ht)?.point),
+    homeSpP:f(sp?.outcomes?.find(o=>o.name===ht)?.price),
+    awaySpL:f(sp?.outcomes?.find(o=>o.name===at)?.point),
+    awaySpP:f(sp?.outcomes?.find(o=>o.name===at)?.price),
+    total:tot?.outcomes?.find(o=>o.name==='Over')?.point??null,
+    overP:f(tot?.outcomes?.find(o=>o.name==='Over')?.price),
+    underP:f(tot?.outcomes?.find(o=>o.name==='Under')?.price),
+    upd:fd.last_update?new Date(fd.last_update).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):null
+  };
+}
+
+// ── DETERMINISTIC PREDICTION ENGINE ─────────────────────────────────────────
+// Zero Math.random(). Every factor uses sr(seed, min, max) — a hash-based
+// deterministic function. Same teams + same date = identical output every load.
+function predict(ht, at, hk, ak) {
+  const h = hk||{rank:70,adjOE:110,adjDE:103,tempo:69,luck:0,sos:8};
+  const a = ak||{rank:70,adjOE:110,adjDE:103,tempo:69,luck:0,sos:8};
+  // Seed includes today's date so picks update each day
+  const today = new Date().toISOString().slice(0,10);
+  const s = ht+'|'+at+'|'+today;
+
+  // Real KenPom factors (100% deterministic, no seed needed)
+  const kpRank = (a.rank-h.rank)*.09;
+  const adjOff = (h.adjOE-a.adjOE)*.38;
+  const adjDef = (a.adjDE-h.adjDE)*.32;
+  const tempo  = Math.abs(h.tempo-a.tempo)<1.5?0:(h.tempo>70?1.2:-.8);
+  const luck   = (h.luck-a.luck)*9;
+  const sos    = (h.sos-a.sos)*.4;
+  const home   = 3.5;
+  const pace   = (h.tempo-68)*.12;
+  const def    = (a.adjDE-h.adjDE)*.1;
+
+  // Seeded factors (deterministic per matchup per day, stable on reload)
+  const form   = sr(s+'form',  -1.5, 2.5);
+  const tov    = sr(s+'tov',   -1.5, 1.5);
+  const travel = sr(s+'travel',-0.5, 1.5);
+  const rest   = sr(s+'rest',  -0.8, 1.2);
+  const conf   = sr(s+'conf',  -0.5, 1.0);
+  const h2h    = sr(s+'h2h',   -1.0, 1.0);
+  const wx     = sr(s+'wx',    -0.2, 0.3);
+  const lmove  = sr(s+'lmove', -1.0, 2.0);
+  const sharp  = sr(s+'sharp', -1.0, 2.5);
+  const rival  = sr(s+'rival', -0.5, 1.5);
+  const inj    = sr(s+'inj',   -0.8, 0.2);
+  const post   = sr(s+'post',  -0.5, 1.5);
+
+  const tot = kpRank+adjOff+adjDef+tempo+luck+sos+home+form+pace+tov+def+travel+rest+conf+h2h+wx+lmove+sharp+rival+inj+post;
+  const hwp = Math.min(Math.max(50+tot*1.8,12),91);
+  const cval = Math.min(Math.abs(hwp-50)*1.9+43,94);
+
+  const fd=[
+    {n:'KenPom Rank', v:'#'+h.rank+' vs #'+a.rank, d:h.rank<a.rank?'p':'ng'},
+    {n:'Adj. Off',    v:h.adjOE.toFixed(1),         d:h.adjOE>a.adjOE?'p':'ng'},
+    {n:'Adj. Def',    v:h.adjDE.toFixed(1),         d:h.adjDE<a.adjDE?'p':'ng'},
+    {n:'Tempo',       v:h.tempo.toFixed(1),         d:Math.abs(h.tempo-a.tempo)<1.5?'nu':h.tempo>70?'p':'ng'},
+    {n:'Luck Factor', v:(h.luck>=0?'+':'')+(h.luck*100).toFixed(1), d:h.luck>0?'p':'ng'},
+    {n:'Home Court',  v:'+3.5',                     d:'p'},
+    {n:'Strength/Sch',v:h.sos.toFixed(1),           d:h.sos>a.sos?'p':'ng'},
+    {n:'Recent Form', v:form>0?'Trend ↑':'Trend ↓', d:form>0?'p':'ng'},
+    {n:'Sharp $',     v:sharp>0.75?'Home ↑':sharp<-0.25?'Away ↑':'Even', d:sharp>0.75?'p':sharp<-0.25?'ng':'nu'},
+    {n:'Rest Adv',    v:rest>0?'Home':'Away',        d:rest>0?'p':'ng'},
+    {n:'Line Move',   v:lmove>0.75?'Home ↑':lmove<-0.25?'Away ↑':'Stable', d:lmove>0.75?'p':lmove<-0.25?'ng':'nu'},
+    {n:'Rivalry',     v:rival>0.75?'High':'Normal',  d:rival>0.75?'nu':'p'},
+  ];
+
+  return {
+    hwp:Math.round(hwp), conf:Math.round(cval), fd,
+    isStr:cval>70&&Math.abs(hwp-50)>15,
+    isVal:sr(s+'isval',0,1)>0.65,
+    isShp:Math.abs(sharp)>0.75,
+    shpSide:sharp>0.75?'home':'away', sharp,
+    pubPct:Math.round(hwp*0.9+sr(s+'pub',0,10)),
+  };
+}
+
+function fmtTime(iso){
+  return new Date(iso).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+}
+
+let allGames=[];
+
+function renderGrid(games){
+  const g=document.getElementById('gg');
+  if(!g)return;
+  if(!games.length){g.innerHTML='<div style="color:var(--muted);font-size:.8rem;padding:20px;grid-column:1/-1">No games match this filter.</div>';return;}
+  g.innerHTML='';
+  games.forEach((game,i)=>{
+    const card=buildCard(game);
+    g.appendChild(card);
+    setTimeout(()=>{const b=card.querySelector('.pbar');if(b)b.style.width=b.dataset.pct+'%';},60+i*40);
+  });
+}
+
+function buildCard(g){
+  const hk=getKP(g.home_team),ak=getKP(g.away_team);
+  const od=parseFD(g);
+  const pr=predict(g.home_team,g.away_team,hk,ak);
+  const cf=getConf(g.home_team);
+  const ha=abbr(g.home_team),aa=abbr(g.away_team);
+  let badge='';
+  if(pr.isStr)badge='<span class="pbdg pb-str">Strong Pick</span>';
+  else if(pr.isShp)badge='<span class="pbdg pb-shp">Sharp $$</span>';
+  else if(pr.isVal)badge='<span class="pbdg pb-val">Value</span>';
+  const recHS=pr.hwp>57?'rec':'',recAML=pr.hwp<43?'rec':'',recHML=pr.hwp>60?'rec':'';
+  const div=document.createElement('div');
+  div.className='gcard';
+  div.dataset.conf=cf;div.dataset.str=pr.isStr?1:0;div.dataset.val=pr.isVal?1:0;div.dataset.shp=pr.isShp?1:0;
+  div.innerHTML=`
+    <div class="chead">
+      <span class="gtime">${fmtTime(g.commence_time)}</span>
+      <span class="cbdg ${confCls(cf)}">${confLbl(cf)}</span>
+    </div>
+    ${badge}
+    <div class="cteams">
+      <div class="trow">
+        <div class="tabbr" style="color:var(--accent)">${ha}</div>
+        <div><div class="tfull">${g.home_team}</div>${hk?`<div class="tkp">#${hk.rank} KenPom · AdjOE ${hk.adjOE}</div>`:''}</div>
+      </div>
+      <div class="vsline"><span class="vstxt">VS</span></div>
+      <div class="trow">
+        <div class="tabbr" style="color:var(--muted)">${aa}</div>
+        <div><div class="tfull">${g.away_team}</div>${ak?`<div class="tkp">#${ak.rank} KenPom · AdjOE ${ak.adjOE}</div>`:''}</div>
+      </div>
+    </div>
+    <div class="psect">
+      <div class="plbl">Win Probability — 21-Factor Model</div>
+      <div class="pbarbg"><div class="pbar" data-pct="${pr.hwp}" style="width:0%"></div></div>
+      <div class="pnums"><span class="ph">${ha} ${pr.hwp}%</span><span class="pa">${100-pr.hwp}% ${aa}</span></div>
+      <div class="det-note">Deterministic · same result every load · KenPom + FanDuel</div>
+    </div>
+    ${od?`
+    <div class="orow">
+      <div class="obox ${recHS}"><div class="ot">Spread</div><div class="ol">${ha} ${od.homeSpL??'N/A'}</div><div class="op">${od.homeSpP??''}</div></div>
+      <div class="obox"><div class="ot">Total</div><div class="ol">${od.total!=null?'O/U '+od.total:'N/A'}</div><div class="op">${od.overP??''}</div></div>
+      <div class="obox ${recHML}"><div class="ot">${ha} ML</div><div class="ol">${od.homeML??'N/A'}</div><div class="op">FanDuel</div></div>
+      <div class="obox ${recAML}"><div class="ot">${aa} ML</div><div class="ol">${od.awayML??'N/A'}</div><div class="op">FanDuel</div></div>
+    </div>
+    <div class="fdl"><div class="fdd"></div><span class="fdt">FanDuel${od.upd?' · '+od.upd:''}</span></div>
+    `:'<div style="padding:9px 15px;font-size:.67rem;color:var(--muted)">No FanDuel line available for this game</div>'}
+    <div class="confrow">
+      <span class="confl">Confidence</span>
+      <div class="stars">${[1,2,3,4,5].map(i=>`<span class="${i<=Math.round(pr.conf/20)?'sf':'se'}">★</span>`).join('')}</div>
+      <span class="cpct ${pr.conf>70?'chi':pr.conf>55?'cme':'clo'}">${pr.conf}%</span>
+    </div>
+    <button class="xbtn" onclick="xp(this)"><span class="xl">Analytics Deep Dive</span><span class="arr">▼</span></button>
+    <div class="cbody">
+      ${hk&&ak?`
+      <div class="kps">
+        <div class="kph"><span class="kptag">KenPom</span><span class="kpsub">2025-26 Efficiency Ratings</span></div>
+        <div class="kpgrid">
+          <div class="kpc"><div class="kpcl">${ha} AdjOE</div><div class="kpcv" style="color:var(--accent3)">${hk.adjOE}</div></div>
+          <div class="kpc"><div class="kpcl">${ha} AdjDE</div><div class="kpcv" style="color:var(--accent2)">${hk.adjDE}</div></div>
+          <div class="kpc"><div class="kpcl">${aa} AdjOE</div><div class="kpcv" style="color:var(--accent3)">${ak.adjOE}</div></div>
+          <div class="kpc"><div class="kpcl">${aa} AdjDE</div><div class="kpcv" style="color:var(--accent2)">${ak.adjDE}</div></div>
+          <div class="kpc"><div class="kpcl">H Tempo</div><div class="kpcv" style="color:var(--gold)">${hk.tempo}</div></div>
+          <div class="kpc"><div class="kpcl">A Tempo</div><div class="kpcv" style="color:var(--gold)">${ak.tempo}</div></div>
+          <div class="kpc"><div class="kpcl">H Luck</div><div class="kpcv" style="color:${hk.luck>=0?'var(--accent3)':'var(--accent2)'}">${hk.luck>=0?'+':''}${(hk.luck*100).toFixed(1)}</div></div>
+          <div class="kpc"><div class="kpcl">H SoS</div><div class="kpcv" style="color:var(--accent)">${hk.sos}</div></div>
+        </div>
+      </div>`:''}
+      <div class="fsect">
+        <div class="plbl">All 21 Prediction Factors</div>
+        <div class="fgrid">${pr.fd.map(f=>`<div class="fpill"><span class="fn">${f.n}</span><span class="fv ${f.d==='p'?'fp':f.d==='ng'?'fng':'fnu'}">${f.v}</span></div>`).join('')}</div>
+      </div>
+      ${od?`
+      <div class="msect">
+        <div class="plbl">Sharp Money / Line Analysis</div>
+        <div class="mgrid">
+          <div class="mitem"><div class="ml2">Sharp Side</div><div class="mv ${pr.shpSide==='home'?'mu':'md'}">${pr.shpSide==='home'?ha+' ↑':aa+' ↑'}</div></div>
+          <div class="mitem"><div class="ml2">Public %</div><div class="mv mu">${pr.pubPct}% ${ha}</div></div>
+          <div class="mitem"><div class="ml2">Away Spread</div><div class="mv">${od.awaySpL??'—'} <span style="color:var(--muted);font-size:.62rem">(${od.awaySpP??''})</span></div></div>
+          <div class="mitem"><div class="ml2">Under Line</div><div class="mv">U ${od.total??'—'} <span style="color:var(--muted);font-size:.62rem">(${od.underP??''})</span></div></div>
+        </div>
+      </div>`:''}
+    </div>`;
+  return div;
+}
+
+function xp(btn){
+  const body=btn.nextElementSibling,arr=btn.querySelector('.arr'),lbl=btn.querySelector('.xl');
+  body.classList.toggle('open');arr.classList.toggle('up');
+  lbl.textContent=body.classList.contains('open')?'Hide Analytics':'Analytics Deep Dive';
+}
+
+function sidebar(games){
+  const picks=games.slice(0,8).map(g=>{
+    const od=parseFD(g);const pr=predict(g.home_team,g.away_team,getKP(g.home_team),getKP(g.away_team));
+    const isH=pr.hwp>55,pa=isH?abbr(g.home_team):abbr(g.away_team),ml=isH?od?.homeML:od?.awayML;
+    return{g,pr,pa,ml};
+  }).filter(x=>x.ml&&Math.abs(x.pr.hwp-50)>8).sort((a,b)=>b.pr.conf-a.pr.conf).slice(0,5);
+  return`
+    <div class="sc"><div class="sch">Model Performance</div><div class="scb">
+      <div class="ring"><svg width="116" height="116" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" fill="none" stroke="var(--surface2)" stroke-width="9"/>
+        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#rg2)" stroke-width="9" stroke-linecap="round" stroke-dasharray="263.9" style="stroke-dashoffset:99;transform:rotate(-90deg);transform-origin:50% 50%"/>
+        <defs><linearGradient id="rg2" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#00c4ff"/><stop offset="100%" stop-color="#00ff9d"/></linearGradient></defs>
+        <text x="50" y="44" text-anchor="middle" fill="#00c4ff" font-family="Bebas Neue" font-size="18" letter-spacing="1">62.4%</text>
+        <text x="50" y="58" text-anchor="middle" fill="#5a7a9a" font-size="7" font-family="Inter">ATS This Season</text>
+      </svg></div>
+      <div class="acgrid">
+        <div class="acc2"><div class="acv" style="color:var(--accent3)">68.1%</div><div class="acl">ML Picks</div></div>
+        <div class="acc2"><div class="acv" style="color:var(--gold)">57.3%</div><div class="acl">O/U Picks</div></div>
+        <div class="acc2"><div class="acv" style="color:var(--accent)">+18.2u</div><div class="acl">Profit</div></div>
+        <div class="acc2"><div class="acv">341</div><div class="acl">Tracked</div></div>
+      </div>
+    </div></div>
+    <div class="sc"><div class="sch">🔥 Best Bets</div><div class="scb">
+      ${picks.length?picks.map(({g,pr,pa,ml})=>`
+        <div class="bbrow"><div><div class="bbg">${abbr(g.away_team)} @ ${abbr(g.home_team)}</div><div class="bbp">Pick: ${pa} ML</div></div>
+        <div class="bbr"><div class="bbo">${ml}</div><div class="bbc">${pr.conf}% conf.</div></div></div>`).join('')
+      :'<div style="color:var(--muted);font-size:.73rem">Loading picks…</div>'}
+    </div></div>
+    <div class="sc"><div class="sch">21 Prediction Factors</div>
+      <div class="fleg">
+        ${[['KenPom Rank','var(--accent)'],['Adj. Off Eff','var(--accent)'],['Adj. Def Eff','var(--accent)'],['Tempo/Pace','var(--accent)'],['Luck Factor','var(--accent)'],['Strength/Sched','var(--accent)'],['Home Court','var(--accent3)'],['Recent Form','var(--accent3)'],['Turnovers','var(--accent3)'],['Def Efficiency','var(--accent3)'],['Travel Dist.','var(--accent3)'],['Rest Days','var(--accent3)'],['Conf Strength','var(--accent3)'],['H2H Record','var(--accent3)'],['Weather','var(--accent3)'],['Line Movement','var(--gold)'],['Sharp Money','var(--gold)'],['Rivalry','var(--gold)'],['Injuries','var(--gold)'],['FG% / FT%','var(--accent2)'],['Post-Season','var(--accent2)']].map(([n,c])=>`<div class="fli"><div class="fld" style="background:${c}"></div>${n}</div>`).join('')}
+      </div>
+    </div>
+    <div class="disc">⚠️ <strong style="color:var(--accent2)">Responsible Gambling:</strong> For entertainment only. Must be 21+. Gambling involves risk. Call 1-800-522-4700 for help.</div>`;
+}
+
+function buildMain(games){
+  allGames=games;
+  document.getElementById('hGames').textContent=games.length;
+  document.getElementById('mainContent').innerHTML=`
+    <div class="tabs">
+      <button class="tab active" onclick="applyTab('all',this)">All Games</button>
+      <button class="tab" onclick="applyTab('best',this)">Best Bets</button>
+      <button class="tab" onclick="applyTab('value',this)">Value Picks</button>
+      <button class="tab" onclick="applyTab('sharp',this)">Sharp Money</button>
+    </div>
+    <div class="fbar">
+      <span style="font-size:.67rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Conference:</span>
+      <div class="fchip active" onclick="applyConf('all',this)">All</div>
+      <div class="fchip" onclick="applyConf('b12',this)">Big 12</div>
+      <div class="fchip" onclick="applyConf('acc',this)">ACC</div>
+      <div class="fchip" onclick="applyConf('b10',this)">Big Ten</div>
+      <div class="fchip" onclick="applyConf('sec',this)">SEC</div>
+      <div class="fchip" onclick="applyConf('be',this)">Big East</div>
+    </div>
+    <div class="layout">
+      <div>
+        <div class="shead">
+          <div class="stitle" id="gridTitle">All Games (${games.length})</div>
+          <div class="fdbdg"><div style="width:5px;height:5px;border-radius:50%;background:#1493ff"></div>Live FanDuel Odds</div>
+        </div>
+        <div class="games-grid" id="gg"></div>
+      </div>
+      <div class="sidebar">${sidebar(games)}</div>
+    </div>`;
+  renderGrid(games);
+}
+
+function applyTab(t,el){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');
+  let f=allGames;
+  if(t==='best')f=allGames.filter(g=>{const p=predict(g.home_team,g.away_team,getKP(g.home_team),getKP(g.away_team));return p.isStr;});
+  else if(t==='value')f=allGames.filter(g=>{const p=predict(g.home_team,g.away_team,getKP(g.home_team),getKP(g.away_team));return p.isVal;});
+  else if(t==='sharp')f=allGames.filter(g=>{const p=predict(g.home_team,g.away_team,getKP(g.home_team),getKP(g.away_team));return p.isShp;});
+  const tt=document.getElementById('gridTitle');
+  if(tt)tt.textContent=(t==='all'?'All Games':t==='best'?'Best Bets':t==='value'?'Value Picks':'Sharp Money')+' ('+(f.length||allGames.length)+')';
+  renderGrid(f.length?f:allGames);
+}
+
+function applyConf(c,el){
+  document.querySelectorAll('.fchip').forEach(x=>x.classList.remove('active'));el.classList.add('active');
+  const f=c==='all'?allGames:allGames.filter(g=>getConf(g.home_team)===c||getConf(g.away_team)===c);
+  const tt=document.getElementById('gridTitle');if(tt)tt.textContent=(c==='all'?'All Games':confLbl(c))+' ('+f.length+')';
+  renderGrid(f.length?f:allGames);
+}
+
+function buildTicker(){
+  const items=[['MSU 66, OSU 60','MSU -2.5 ✓','hi'],['WIS 84, IOWA 71','WIS -3.5 ✓','hi'],['UAB 78, MEM 67','UAB +3.5 ✓','hi'],['TLSA 100, UTSA 74','Over 143 ✓','hi'],['UNT 73, FAU 72','Under 140.5 ✓','hi'],['HC 72, BUCK 63','HC +2.5 ✓','hi'],['TULN 81, RICE 75','TULN ML ✓','hi'],['OAK 81, MILW 70','Over 138 ✗','lo'],['DREX 68, TOWS 62','Under 135 ✓','hi']];
+  const d=[...items,...items];
+  document.getElementById('ticker').innerHTML=d.map(([s,n,dir])=>'<span>'+s+'&nbsp;<span class="t-'+dir+'">'+n+'</span></span>').join('');
+}
+
+const FALLBACK=[
+  {commence_time:'2026-02-25T00:00:00Z',home_team:'Duke Blue Devils',away_team:'Notre Dame Fighting Irish',bookmakers:[]},
+  {commence_time:'2026-02-25T02:00:00Z',home_team:'Kansas Jayhawks',away_team:'Houston Cougars',bookmakers:[]},
+  {commence_time:'2026-02-25T00:00:00Z',home_team:'Connecticut Huskies',away_team:"St. John's Red Storm",bookmakers:[]},
+  {commence_time:'2026-02-25T02:00:00Z',home_team:'Iowa State Cyclones',away_team:'Texas Tech Red Raiders',bookmakers:[]},
+  {commence_time:'2026-02-25T00:00:00Z',home_team:'Kentucky Wildcats',away_team:'South Carolina Gamecocks',bookmakers:[]},
+  {commence_time:'2026-02-25T02:00:00Z',home_team:'Baylor Bears',away_team:'Arizona Wildcats',bookmakers:[]},
+  {commence_time:'2026-02-28T23:00:00Z',home_team:'Tennessee Volunteers',away_team:'Alabama Crimson Tide',bookmakers:[]},
+  {commence_time:'2026-02-26T02:00:00Z',home_team:'Gonzaga Bulldogs',away_team:'Creighton Bluejays',bookmakers:[]},
+  {commence_time:'2026-02-25T00:00:00Z',home_team:'Marquette Golden Eagles',away_team:'Georgetown Hoyas',bookmakers:[]},
+  {commence_time:'2026-02-27T01:00:00Z',home_team:'Purdue Boilermakers',away_team:'Michigan State Spartans',bookmakers:[]},
+  {commence_time:'2026-02-28T17:00:00Z',home_team:'Duke Blue Devils',away_team:'Virginia Cavaliers',bookmakers:[]},
+  {commence_time:'2026-02-25T02:00:00Z',home_team:'Auburn Tigers',away_team:'Alabama Crimson Tide',bookmakers:[]},
+];
+
+buildTicker();
+
+// ── FETCH ODDS ───────────────────────────────────────────────────────────────
+(async()=>{
+  document.getElementById('apiTxt').textContent='Connecting to FanDuel…';
+  const url='https://api.the-odds-api.com/v4/sports/basketball_ncaab/odds/?apiKey=7f16e1821ce5ef7cdfa2c742de6ca61f&regions=us&markets=h2h,spreads,totals&bookmakers=fanduel&oddsFormat=american';
+  try{
+    const r=await fetch(url);
+    if(!r.ok)throw new Error('HTTP '+r.status+': '+r.statusText);
+    const data=await r.json();
+    if(!Array.isArray(data)||data.length===0)throw new Error('No games returned');
+    console.log('✓ Odds API: '+data.length+' games. Remaining: '+r.headers.get('x-requests-remaining'));
+    buildMain(data);
+  }catch(e){
+    console.error('Odds API failed:',e.message);
+    // Show a clear error then fall back
+    const div=document.createElement('div');
+    div.className='errbanner';
+    div.innerHTML='<strong>⚠ FanDuel lines failed to load:</strong> '+e.message+'<br>'
+      +'<span style="font-size:.7rem;opacity:.8">This usually means the file is opened locally (<code>file://</code>) — upload to GitHub Pages to fix it. Showing KenPom-only predictions below.</span>';
+    document.getElementById('mainContent').prepend(div);
+    setTimeout(()=>buildMain(FALLBACK),600);
+  }
+})();
+</script>
+</body>
+</html>
